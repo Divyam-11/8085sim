@@ -16,8 +16,55 @@ let searchList = {}; // stores a list of opcodes as {instruction: opcode} eg: {'
  * the inputted value is searched through all the opcode lists and displays
  * a list of matched opcodes as a result.
  */
+document.getElementById('searchbar').onkeydown = async e => {
+  let value = e.target.value;
+  if (e.key === 'Enter' && value.toLowerCase().startsWith('/ai ')) {
+    document.getElementById('loading-icon').style.display = 'block';
+    const promptText = value.substring(4).trim();
+    try {
+      const { GoogleGenAI } = await import("https://esm.run/@google/genai");
+      let key = localStorage.getItem("gemini_api_key");
+      if (!key) {
+        key = prompt("Enter Gemini API Key:");
+        if (key) localStorage.setItem("gemini_api_key", key);
+        else {
+          document.getElementById('loading-icon').style.display = 'none';
+          return;
+        }
+      }
+      const ai = new GoogleGenAI({ apiKey: key });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "You are an 8085 simulator assistant. Write 8085 machine code for this prompt: " + promptText + ". Output strictly ONLY hex codes separated by space. Do not write markdown, explanations, or anything else. Example: 3E 05 06 05",
+      });
+      let hexCodes = response.text.trim().replace(/[^0-9A-Fa-f\s]/g, '').trim().split(/\s+/);
+      let address = 0x0000;
+      hexCodes.forEach(code => {
+        if (code) {
+           code = code.length === 1 ? '0' + code : code;
+           stack[address++] = code.toUpperCase();
+        }
+      });
+      addr = '0000';
+      data = stack[0] || '00';
+      document.getElementById('addrsc').innerText = addr;
+      document.getElementById('datasc').innerText = data;
+      currentState = inputAddress;
+      e.target.value = "";
+      alert("Injected " + hexCodes.length + " bytes of AI generated code at 0x0000");
+    } catch (err) {
+      console.error(err);
+      alert("AI injection failed: " + err.message);
+    }
+    document.getElementById('loading-icon').style.display = 'none';
+  }
+};
+
 document.getElementById('searchbar').oninput = e => {
-  let value = e.target.value.toUpperCase();
+  let rawValue = e.target.value;
+  if(rawValue.toLowerCase().startsWith('/')) return;
+  
+  let value = rawValue.toUpperCase();
   
   // checks if inputted search value contains valid characters,
   // if it does not contain valid characters then replace
